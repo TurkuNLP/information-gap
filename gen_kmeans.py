@@ -31,14 +31,14 @@ def yield_embeddings(pkl_files, args, label_field=None):
                     metadata["origin"]=os.path.basename(meta_file_name)
                 except EOFError:
                     break
-                if np.random.random() < args.sample_percentage:
+                if np.random.random() < args.global_sample_percentage:
                     yield {"metadata": metadata, "embedding": embedding}
 
 
 def build_kmeans_model(embeddings_ndarray, num_clusters, args):
     # Create and fit KMeans model
     kmeans = KMeans(n_clusters=num_clusters, random_state=42, n_init=10)
-    print(f"Fitting KMeans with {num_clusters} clusters on {len(embeddings_ndarray)} vectors...", flush=True)
+    print(f"Fitting KMeans with {num_clusters} clusters on {len(embeddings_ndarray)} vectors. Shape: {embeddings_ndarray.shape}", flush=True)
     kmeans.fit(embeddings_ndarray)
     return kmeans
 
@@ -79,10 +79,16 @@ if __name__ == "__main__":
         help=f"Number of clusters for KMeans. If a float <= 1.0, it will be interpreted as a percentage of the number of embeddings."
     )
     parser.add_argument(
-        "--sample-percentage",
+        "--global-sample-percentage",
         type=float,
         default=1.0,
-        help=f"Percentage of embeddings to sample."
+        help=f"Percentage of embeddings to sample when loading the embeddings, the rest will be forever lost."
+    )
+    parser.add_argument(
+        "--fitting-sample-percentage",
+        type=float,
+        default=1.0,
+        help=f"Percentage of embeddings to sample when fitting the PCA+KMeans model, the rest will only be clustered but not used for fitting."
     )
     parser.add_argument(
         "--no-preload-pkl-file-to-memory",
@@ -112,9 +118,12 @@ if __name__ == "__main__":
     permutation = np.random.permutation(len(embeddings_ndarray))
     embeddings_ndarray = embeddings_ndarray[permutation]
     metadata_list = metadata_list[permutation]
+
+    fitting_embeddings_ndarray = embeddings_ndarray[:int(len(embeddings_ndarray) * args.fitting_sample_percentage)]
     if args.pca > 0:
         pca = PCA(n_components=args.pca)
-        pca.fit(embeddings_ndarray)
+        pca.fit(fitting_embeddings_ndarray)
+        fitting_embeddings_ndarray = pca.transform(fitting_embeddings_ndarray)
         embeddings_ndarray = pca.transform(embeddings_ndarray)
         with open(f"{args.output_prefix}.pca_model.pkl", "wb") as f:
             pickle.dump(pca, f)
@@ -129,7 +138,8 @@ if __name__ == "__main__":
         n_clusters = int(args.num_clusters * len(embeddings_ndarray))
     else:
         n_clusters = int(args.num_clusters)
-    kmeans = build_kmeans_model(embeddings_ndarray, n_clusters, args)
+    
+    kmeans = build_kmeans_model(fitting_embeddings_ndarray, n_clusters, args)
     cluster_assignments = kmeans.predict(embeddings_ndarray)
  
     with open(f"{args.output_prefix}.kmeans_model.pkl", "wb") as f:
