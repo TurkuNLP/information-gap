@@ -70,7 +70,7 @@ if __name__ == "__main__":
         "--output-prefix",
         type=str,
         required=True,
-        help="Path prefix where the following will be saved: .kmeans_model.pkl, .labels.json, .centroids.npy"
+        help="Path prefix where the following will be saved: .kmeans_model.pkl, .labels.json, .centroids.npy, .pca_model.pkl"
     )
     parser.add_argument(
         "--num-clusters",
