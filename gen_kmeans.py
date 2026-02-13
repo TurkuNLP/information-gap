@@ -2,10 +2,12 @@ import pickle
 import torch
 import numpy as np
 from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
 import json
 import sys
 import io
 import random
+import os
 
 def yield_embeddings(pkl_files, args, label_field=None):
     for pkl_file in pkl_files:
@@ -18,14 +20,15 @@ def yield_embeddings(pkl_files, args, label_field=None):
             #print(f"Done. Preloaded {pkl_file} to memory", file=sys.stderr, flush=True)
         else:
             f_emb = open(pkl_file, "rb")
-            
-        with open(f"{pkl_file.replace(".embeddings.pkl", ".examples.jsonl")}", "rt") as f_meta:
+        meta_file_name = pkl_file.replace(".embeddings.pkl", ".examples.jsonl")    
+        with open(meta_file_name, "rt") as f_meta:
             while True:
                 try:
                     embedding = pickle.load(f_emb)
                     metadata = json.loads(f_meta.readline())
                     if label_field is not None:
                         metadata["label"] = label_field
+                    metadata["origin"]=os.path.basename(meta_file_name)
                 except EOFError:
                     break
                 if np.random.random() < args.sample_percentage:
@@ -56,7 +59,13 @@ if __name__ == "__main__":
         metavar=("LABEL","EMBEDDING_FILES"),
         help="Gather embeddings: LABEL followed by as many .pkl files as you have. You can repeate --embeddings many times for different parts of the dataset."
     )
-
+    parser.add_argument(
+        "--pca",
+        type=float,
+        default=0.0,
+        help=f"PCA reduction factor. If 0, no PCA will be performed. Percentage of variance retained."
+    )
+    
     parser.add_argument(
         "--output-prefix",
         type=str,
@@ -85,7 +94,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     embeddings_ndarray = []
-    labels_list = []
+    metadata_list = []
 
     for label_embeddings_files in args.embeddings:
         label, embeddings_files = label_embeddings_files[0], label_embeddings_files[1:]
@@ -94,17 +103,26 @@ if __name__ == "__main__":
         embeddings_generator=yield_embeddings(embeddings_files, label_field=label, args=args)
         for embedding_dict in embeddings_generator:
             embeddings_ndarray.append(embedding_dict["embedding"])
-            labels_list.append(embedding_dict["metadata"]["label"])
+            metadata_list.append(embedding_dict["metadata"])
     embeddings_ndarray = np.vstack(embeddings_ndarray)
-    labels_list = np.array(labels_list)
-    assert len(embeddings_ndarray) == len(labels_list), "Number of embeddings and labels must match"
+    metadata_list = np.array(metadata_list)
+    assert len(embeddings_ndarray) == len(metadata_list), "Number of embeddings and labels must match"
 
-    # Shuffle embeddings_ndarray and labels_list together to maintain correspondence
+    # Shuffle embeddings_ndarray and metadata_list together to maintain correspondence
     permutation = np.random.permutation(len(embeddings_ndarray))
     embeddings_ndarray = embeddings_ndarray[permutation]
-    labels_list = labels_list[permutation]
+    metadata_list = metadata_list[permutation]
+    if args.pca > 0:
+        pca = PCA(n_components=args.pca)
+        pca.fit(embeddings_ndarray)
+        embeddings_ndarray = pca.transform(embeddings_ndarray)
+        with open(f"{args.output_prefix}.pca_model.pkl", "wb") as f:
+            pickle.dump(pca, f)
+        print("PCA model saved to", f"{args.output_prefix}.pca_model.pkl", file=sys.stderr, flush=True)
+        print(f"PCA: {pca.explained_variance_ratio_.sum():.6f} variance retained in {pca.n_components_} components", file=sys.stderr, flush=True)
 
-    print("Loaded", len(embeddings_ndarray), "embeddings for unique labels:", np.unique(labels_list),\
+    unique_labels = list(set(item["label"] for item in metadata_list))
+    print("Loaded", len(embeddings_ndarray), "embeddings for unique labels:", unique_labels,\
         "with shape", embeddings_ndarray.shape, file=sys.stderr, flush=True)
 
     if args.num_clusters <= 1.0:
@@ -117,9 +135,9 @@ if __name__ == "__main__":
     with open(f"{args.output_prefix}.kmeans_model.pkl", "wb") as f:
         pickle.dump(kmeans, f)
     
-    with open(f"{args.output_prefix}.labels.jsonl", "wt") as f:
-        for label, cluster_index in zip(labels_list, cluster_assignments):
-            json.dump({"label": label, "cluster_index": int(cluster_index)}, f)
+    with open(f"{args.output_prefix}.metadata.jsonl", "wt") as f:
+        for label, cluster_index in zip(metadata_list, cluster_assignments):
+            json.dump({"metadata": label, "cluster_index": int(cluster_index)}, f)
             f.write("\n")
     
     with open(f"{args.output_prefix}.centroids.npy", "wb") as f:
