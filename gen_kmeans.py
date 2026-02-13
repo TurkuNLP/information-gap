@@ -1,0 +1,132 @@
+import pickle
+import torch
+import numpy as np
+from sklearn.cluster import KMeans
+import json
+import sys
+import io
+import random
+
+def yield_embeddings(pkl_files, args, label_field=None):
+    for pkl_file in pkl_files:
+        if args.preload_pkl_file_to_memory:
+            #print(f"Preloading {pkl_file} to memory", file=sys.stderr, flush=True)
+            f=open(pkl_file, "rb")
+            emb_pkl=f.read()
+            f.close()
+            f_emb = io.BytesIO(emb_pkl)
+            #print(f"Done. Preloaded {pkl_file} to memory", file=sys.stderr, flush=True)
+        else:
+            f_emb = open(pkl_file, "rb")
+            
+        with open(f"{pkl_file.replace(".embeddings.pkl", ".examples.jsonl")}", "rt") as f_meta:
+            while True:
+                try:
+                    embedding = pickle.load(f_emb)
+                    metadata = json.loads(f_meta.readline())
+                    if label_field is not None:
+                        metadata["label"] = label_field
+                except EOFError:
+                    break
+                if np.random.random() < args.sample_percentage:
+                    yield {"metadata": metadata, "embedding": embedding}
+
+
+def build_kmeans_model(embeddings_ndarray, num_clusters, args):
+    # Create and fit KMeans model
+    kmeans = KMeans(n_clusters=num_clusters, random_state=42, n_init=10)
+    print(f"Fitting KMeans with {num_clusters} clusters on {len(embeddings_ndarray)} vectors...", flush=True)
+    kmeans.fit(embeddings_ndarray)
+    return kmeans
+
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="Build and save a KMeans model from one or more embedding .pkl files",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        "--embeddings",
+        action="append",
+        type=str,
+        nargs="+",
+        required=True,
+        metavar=("LABEL","EMBEDDING_FILES"),
+        help="Gather embeddings: LABEL followed by as many .pkl files as you have. You can repeate --embeddings many times for different parts of the dataset."
+    )
+
+    parser.add_argument(
+        "--output-prefix",
+        type=str,
+        required=True,
+        help="Path prefix where the following will be saved: .kmeans_model.pkl, .labels.json, .centroids.npy"
+    )
+    parser.add_argument(
+        "--num-clusters",
+        type=float,
+        default=100,
+        help=f"Number of clusters for KMeans. If a float <= 1.0, it will be interpreted as a percentage of the number of embeddings."
+    )
+    parser.add_argument(
+        "--sample-percentage",
+        type=float,
+        default=1.0,
+        help=f"Percentage of embeddings to sample."
+    )
+    parser.add_argument(
+        "--no-preload-pkl-file-to-memory",
+        action="store_false",
+        default=True,
+        dest="preload_pkl_file_to_memory",
+        help=f"Preload the .pkl files to memory."
+    )
+    args = parser.parse_args()
+
+    embeddings_ndarray = []
+    labels_list = []
+
+    for label_embeddings_files in args.embeddings:
+        label, embeddings_files = label_embeddings_files[0], label_embeddings_files[1:]
+        print(f"Processing {label} with {len(embeddings_files)} embeddings files: {embeddings_files}", file=sys.stderr, flush=True)
+        #this yields a dictionary with "metadata" and "embedding" at a time
+        embeddings_generator=yield_embeddings(embeddings_files, label_field=label, args=args)
+        for embedding_dict in embeddings_generator:
+            embeddings_ndarray.append(embedding_dict["embedding"])
+            labels_list.append(embedding_dict["metadata"]["label"])
+    embeddings_ndarray = np.vstack(embeddings_ndarray)
+    labels_list = np.array(labels_list)
+    assert len(embeddings_ndarray) == len(labels_list), "Number of embeddings and labels must match"
+
+    # Shuffle embeddings_ndarray and labels_list together to maintain correspondence
+    permutation = np.random.permutation(len(embeddings_ndarray))
+    embeddings_ndarray = embeddings_ndarray[permutation]
+    labels_list = labels_list[permutation]
+
+    print("Loaded", len(embeddings_ndarray), "embeddings for unique labels:", np.unique(labels_list),\
+        "with shape", embeddings_ndarray.shape, file=sys.stderr, flush=True)
+
+    if args.num_clusters <= 1.0:
+        n_clusters = int(args.num_clusters * len(embeddings_ndarray))
+    else:
+        n_clusters = int(args.num_clusters)
+    kmeans = build_kmeans_model(embeddings_ndarray, n_clusters, args)
+    cluster_assignments = kmeans.predict(embeddings_ndarray)
+ 
+    with open(f"{args.output_prefix}.kmeans_model.pkl", "wb") as f:
+        pickle.dump(kmeans, f)
+    
+    with open(f"{args.output_prefix}.labels.jsonl", "wt") as f:
+        for label, cluster_index in zip(labels_list, cluster_assignments):
+            json.dump({"label": label, "cluster_index": int(cluster_index)}, f)
+            f.write("\n")
+    
+    with open(f"{args.output_prefix}.centroids.npy", "wb") as f:
+        np.save(f, kmeans.cluster_centers_)
+
+    #embeddings_tensor, labels = accumulate_embeddings(args.embeddings_files, args.examples_files)
+    #embeddings_tensor, labels = shuffle_and_sample(embeddings_tensor, labels, 0.1)
+    #kmeans = build_kmeans_model(embeddings_tensor, args.num_clusters)
+    #print(kmeans)
+    
