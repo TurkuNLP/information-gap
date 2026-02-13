@@ -28,7 +28,8 @@ def yield_embeddings(pkl_files, args, label_field=None):
                     metadata = json.loads(f_meta.readline())
                     if label_field is not None:
                         metadata["label"] = label_field
-                    metadata["origin"]=os.path.basename(meta_file_name)
+                    if "origin" not in metadata:
+                        metadata["origin"]=os.path.basename(meta_file_name)
                 except EOFError:
                     break
                 if np.random.random() < args.global_sample_percentage:
@@ -152,9 +153,3 @@ if __name__ == "__main__":
     
     with open(f"{args.output_prefix}.centroids.npy", "wb") as f:
         np.save(f, kmeans.cluster_centers_)
-
-    #embeddings_tensor, labels = accumulate_embeddings(args.embeddings_files, args.examples_files)
-    #embeddings_tensor, labels = shuffle_and_sample(embeddings_tensor, labels, 0.1)
-    #kmeans = build_kmeans_model(embeddings_tensor, args.num_clusters)
-    #print(kmeans)
-    
