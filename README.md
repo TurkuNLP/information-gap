@@ -4,6 +4,14 @@ Code for an information gap experiment.
 
 **Work in progress, completely unusable by anyone outside.**
 
+# Calculate embeddings
+
+Use `compute_embeddings.py` from https://github.com/TurkuNLP/embedding-prompt-analysis to calculate embeddings.
+
+Example: `python compute_embeddings.py --model-name [hf model name] --dataset [jsonl file] --output-path-prefix [prefix] --batch 20 --field-to-encode [field name]`
+
+This creates [prefix].[shard].embeddings.pkl (actual embeddings) and [prefix].[shard].examples.jsonl (metadata).
+
 # Example to build new clustering
 
 This will produce a number of clusters/e5_20K_cl_2000_pca_0.9.* files with the models and cluster ids and stuff
@@ -11,7 +19,7 @@ Note how the different embeddings are given using repeated use of --embeddings L
 
 python3 gen_kmeans.py --embeddings native /scratch/project_2000539/information-gap-data/samples/embeddings-e5/native-fin-10K.0.embeddings.pkl --embeddings tropus /scratch/project_2000539/information-gap-data/samples/embeddings-e5/translated-opus-fin-10K.0.embeddings.pkl --global-sample 1.0 --num-clusters 0.1 --fitting 0.5 --output-prefix clusters/e5_20K_cl_2000_pca_0.9 --pca 0.9
 
-# Example to assign ready 
+# Example to assign new embeddings to existing clusters 
 
 This will assign new embeddings to cluster ids, producing ddelme.metadata.jsonl (note -> uses same old embeddings as the command above, but of course you'd run it with different ones). Same --embeddings logic as above, but now what was --output-prefix becomes --model-prefix since we just load the models. And --output-prefix here does not store any models, simply produces the relevant metadata file
 
