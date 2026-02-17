@@ -52,7 +52,9 @@ if __name__ == "__main__":
 
     pca, kmeans = gen_kmeans.load_models(args.model_prefix)
     if pca is not None:
+        print("Applying PCA", file=sys.stderr)
         embeddings_ndarray = pca.transform(embeddings_ndarray)
+    print("Shape of embeddings after PCA:", embeddings_ndarray.shape, file=sys.stderr)
     cluster_assignments = kmeans.predict(embeddings_ndarray)
 
     with open(f"{args.output_prefix}.metadata.jsonl", "wt") as f:

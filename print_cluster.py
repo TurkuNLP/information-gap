@@ -9,6 +9,7 @@ from collections import Counter
 def read_original_files(args):
     original_files = {}
     for original_file in args.original_files:
+        print(f"Reading original file: {original_file}", file=sys.stderr)
         with open(original_file, 'r') as f:
             for i, line in enumerate(f):
                 data = json.loads(line)
@@ -22,6 +23,7 @@ def read_original_files(args):
 
 def yield_documents(args):
     for document_file in args.cluster_metadata:
+        print(f"Reading cluster metadata file: {document_file}", file=sys.stderr)
         with open(document_file, 'r') as f:
             for line in f:
                 yield json.loads(line)
@@ -29,12 +31,20 @@ def yield_documents(args):
 
 def print_document_text(document, original_files):
     metadata = document["metadata"]
-    origin = metadata["origin"].replace(".0.examples.jsonl", "-sample.jsonl")
+    if os.path.basename(metadata["origin"].replace(".0.examples.jsonl", "-sample.jsonl")) in original_files:
+        origin = metadata["origin"].replace(".0.examples.jsonl", "-sample.jsonl")
+    else:
+        origin = metadata["origin"].replace(".0.examples.jsonl", ".jsonl")
     fname = os.path.basename(origin)
     index = metadata["global_example_index"]
     data = original_files[fname][index]
     print(f"\n------------------------------\nDocument {index} from {fname}")
-    print(data["text"],"\n\n", file=sys.stdout)
+    if "text" in data:
+        print(data["text"],"\n\n", file=sys.stdout)
+    elif "question" in data:
+        print(data["question"],"\n\n", file=sys.stdout)
+    else:
+        print(data,"\n\n", file=sys.stdout)
 
 
 def main(args):
