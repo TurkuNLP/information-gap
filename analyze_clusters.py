@@ -7,7 +7,7 @@ import matplotlib.colors as mcolors
 from sklearn.manifold import TSNE
 from collections import Counter, defaultdict
 
-COLOR_PALETTE = ["#5da86a", "#d65c5c", "#92c5de", "#d4a5a5", "#7eb6d9", "#d4c4e0", "#f5e6a3", "#b8e0d2", "#e8c9e8", "#ffd9b3"]
+COLOR_PALETTE = ["#5da86a", "#d65c5c", "#2e6b9e", "#d4a5a5", "#7eb6d9", "#d4c4e0", "#f5e6a3", "#b8e0d2", "#e8c9e8", "#ffd9b3"]
 
 # //////////////////////////////////////////
 # produce toy cluster centroids: shape (100, 1024)
@@ -63,9 +63,12 @@ def cluster_historgram(documents, args):
     # make stacked bars for each label separately
     x_items = order_by_distrib # cluster idx order
     x_pos = np.arange(len(x_items)) # cluster position
-    width = 0.8
+    width = 1.2
     bottom = np.zeros(len(x_items))
     label_to_color = {label: COLOR_PALETTE[i] for i, label in enumerate(labels)} # define colors
+
+    plt.figure(figsize=(8, 6))
+
     bar_containers = []
     for label in labels: # make bars for each label separately
         counts = np.array([clusteridx2labels[cid].count(label) for cid in x_items])
@@ -88,6 +91,9 @@ def cluster_historgram(documents, args):
 
     plt.xlabel("Clusters")
     plt.ylabel("Number of documents")
+
+    plt.ylim(0, bottom.max())
+
     plt.tight_layout()
     plt.show()
 
@@ -191,9 +197,9 @@ def main(args):
     #read data
     cluster_centroids = np.load(args.cluster_centroids)
     print("Cluster centroids shape:", cluster_centroids.shape, file=sys.stderr)
-    documents = read_documents(args.pre_training_documents)
+    documents = read_documents(args.pre_training_metadata)
     print("Pre-training documents:", len(documents), file=sys.stderr)
-    benchmarks = read_documents(args.benchmarks)
+    benchmarks = read_documents(args.benchmark_metadata)
     print("Benchmark documents:", len(benchmarks), file=sys.stderr)
 
 
@@ -201,7 +207,8 @@ def main(args):
     plot_centroids_scatter(cluster_centroids, documents, args)
 
     # plot centroids density with benchmarks
-    plot_centroids_density(cluster_centroids, documents, benchmarks, args)
+    if len(benchmarks) > 0:
+        plot_centroids_density(cluster_centroids, documents, benchmarks, args)
 
     # plot cluster histogram for documents (native and translated) and benchmarks
     cluster_historgram(documents+benchmarks, args)
@@ -209,12 +216,12 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cluster-centroids', type=str, default='toy_data/toy_cluster_data.npy')
-    parser.add_argument('--pre-training-documents', type=str, nargs='+', default=['toy_data/toy_documents.jsonl'])
-    parser.add_argument('--benchmarks', type=str, nargs='+', default=[])
+    parser.add_argument('--cluster-centroids', type=str, required=True)
+    parser.add_argument('--pre-training-metadata', type=str, nargs='+', required=True, help="Clustering metadata file for pre-training documents")
+    parser.add_argument('--benchmark-metadata', type=str, nargs='+', default=[], help="Clustering metadata for benchmark documents")
     parser.add_argument('--native-label', type=str, default="native", help="Label for native documents")
     parser.add_argument('--translated-label', type=str, default="tropus", help="Label for translated documents")
-    parser.add_argument('--benchmark-label', type=str, default="benchmark", help="Label for benchmark documents")
+    #parser.add_argument('--benchmark-label', type=str, default="benchmark", help="Label for benchmark documents")
     args = parser.parse_args()
     main(args)
 

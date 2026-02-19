@@ -8,6 +8,7 @@ import sys
 import io
 import random
 import os
+import gzip
 
 def yield_embeddings(pkl_files, args, label_field=None):
     for pkl_file in pkl_files:
@@ -20,8 +21,10 @@ def yield_embeddings(pkl_files, args, label_field=None):
             #print(f"Done. Preloaded {pkl_file} to memory", file=sys.stderr, flush=True)
         else:
             f_emb = open(pkl_file, "rb")
-        meta_file_name = pkl_file.replace(".embeddings.pkl", ".examples.jsonl")    
-        with open(meta_file_name, "rt") as f_meta:
+        meta_file_name = pkl_file.replace(".embeddings.pkl", ".examples.jsonl.gz") # try gz first, if does not exist default to jsonl
+        if not os.path.isfile(meta_file_name):
+            meta_file_name = pkl_file.replace(".embeddings.pkl", ".examples.jsonl")
+        with gzip.open(meta_file_name, "rt") if meta_file_name.endswith(".gz") else open(meta_file_name, "rt") as f_meta:
             while True:
                 try:
                     embedding = pickle.load(f_emb)
@@ -34,6 +37,8 @@ def yield_embeddings(pkl_files, args, label_field=None):
                     break
                 if np.random.random() < args.global_sample_percentage:
                     yield {"metadata": metadata, "embedding": embedding}
+        if not args.preload_pkl_file_to_memory:
+            f_emb.close()
 
 def load_embeddings(embeddings_files, args):
     embeddings_ndarray = []

@@ -5,12 +5,13 @@ import sys
 import argparse
 import os
 from collections import Counter
+import gzip
 
 def read_original_files(args):
     original_files = {}
     for original_file in args.original_files:
         print(f"Reading original file: {original_file}", file=sys.stderr)
-        with open(original_file, 'r') as f:
+        with gzip.open(original_file, 'rt') if original_file.endswith(".gz") else open(original_file, 'r') as f:
             for i, line in enumerate(f):
                 data = json.loads(line)
                 # get base name
@@ -31,10 +32,8 @@ def yield_documents(args):
 
 def print_document_text(document, original_files):
     metadata = document["metadata"]
-    if os.path.basename(metadata["origin"].replace(".0.examples.jsonl", "-sample.jsonl")) in original_files:
-        origin = metadata["origin"].replace(".0.examples.jsonl", "-sample.jsonl")
-    else:
-        origin = metadata["origin"].replace(".0.examples.jsonl", ".jsonl")
+    origin = os.path.basename(metadata["origin"].replace(".0.examples.jsonl", ".jsonl").replace(".0.examples.jsonl.gz", ".jsonl.gz"))
+    
     fname = os.path.basename(origin)
     index = metadata["global_example_index"]
     data = original_files[fname][index]

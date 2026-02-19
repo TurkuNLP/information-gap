@@ -1,22 +1,21 @@
 import argparse
 from analyze_clusters import read_documents, get_cluster_labels
 import numpy as np
-from scipy.special import rel_entr, kl_div
+# from scipy.special import rel_entr, kl_div 
+
 
 
 def prob_distribution(cluster_labels, label):
-    e = 0.0000001 # small epsilon to avoid zero division
+    e = 1e-8  # small epsilon to avoid zero in counts and in KL
     x = []
     for i in range(len(cluster_labels.keys())):
         labels = cluster_labels[i]
         count = labels.count(label)
-        if count == 0:
-            x.append(e)
-        else:
-            x.append(count)
-    # normalize
-    softmax_distribution = np.exp(x)/sum(np.exp(x))
-    return softmax_distribution
+        x.append(count + e)  # add epsilon to every count so no zeros
+    # normalize to a probability distribution
+    x = np.array(x, dtype=float)
+    p = x / x.sum()
+    return np.clip(p, e, 1.0)  # clip to safety range [e, 1.0], should not do anything
 
 
 def KL(P, Q):
@@ -30,6 +29,8 @@ def main(args):
 
     documents = read_documents(args.clustered_documents)
     cluster_labels = get_cluster_labels(documents)
+    print(f"Total labels {args.label1}: {len([l for i,labels in cluster_labels.items() for l in labels if l == args.label1])}")
+    print(f"Total labels {args.label2}: {len([l for i,labels in cluster_labels.items() for l in labels if l == args.label2])}")
 
     prob_distribution1 = prob_distribution(cluster_labels, args.label1)
     prob_distribution2 = prob_distribution(cluster_labels, args.label2)
