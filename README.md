@@ -4,6 +4,10 @@ Code for an information gap experiment.
 
 **Work in progress, completely unusable by anyone outside.**
 
+# Download data
+
+See data-scripts
+
 # Calculate embeddings
 
 Use `compute_embeddings.py` from https://github.com/TurkuNLP/embedding-prompt-analysis to calculate embeddings.
