@@ -1,10 +1,10 @@
 ## Download and sample MultiSynt data
 
-Download from HuggungFace and sample
+Download from HuggingFace and sample
 
 `python download_sample.py --dataset-name MultiSynt/MT-Nemotron-CC --language-code por_Latn --split tower9b_all --output-file ../../../../information-gap-data/samples/translated-tower9b-por-1M-sample.jsonl.gz --sample-size 1000000`
 
-Sample
+Sample local file
 
 `zcat translated-tower9b-por-1M-sample.jsonl.gz | python sample.py --final-sample-size 10000 | gzip -c > translated-tower9b-por-10K-sample.jsonl.gz`
 
