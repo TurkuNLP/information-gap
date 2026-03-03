@@ -13,8 +13,8 @@ def download_and_sample(args):
 
     dataset = load_dataset(args.dataset_name, args.language_code, split=args.split, streaming=True, cache_dir=args.cache_dir)
 
-    # go through the dataset and sample 30% of the examples
-    initial_sample_percentage = args.sample_size * 2.0 / 150000000 # 2x because we want to sample 30% of the initial sample
+    # go through the dataset and do initial sampling
+    initial_sample_percentage = args.sample_size * 2.0 / 150000000 # keep twice as much as needed for final
     for example in dataset:
         counter += 1
         if random.random() < initial_sample_percentage: # keep enough but not too much
@@ -47,4 +47,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     download_and_sample(args)
+
+    # Example usage: python download_sample.py --dataset-name MultiSynt/MT-Nemotron-CC --language-code por_Latn --split tower9b_all --output-file ../../../../information-gap-data/samples/translated-tower9b-por-1M-sample.jsonl.gz --sample-size 1000000
 
