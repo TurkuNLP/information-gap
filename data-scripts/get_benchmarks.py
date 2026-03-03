@@ -9,32 +9,39 @@ from datasets import load_dataset, load_dataset_builder
 
 def process_arc(example):
     example["benchmark_text"] = example["question"]
+    example["benchmark_text_prompted"] = "Instruct: Given a question, retrieve documents that answer the question\nQuery: " + example["benchmark_text"]
     return example
 
 def process_belebele(example):
     example["benchmark_text"] = example["flores_passage"] + " " + example["question"]
     # convert datetime to string
     example["ds"] = example["ds"].isoformat()
+    example["benchmark_text_prompted"] = "Instruct: Retrieve topically similar documents\nQuery: " + example["benchmark_text"]
     return example
 
 def process_goldenswag(example):
     example["benchmark_text"] = example["ctx"]
+    example["benchmark_text_prompted"] = "Instruct: Retrieve topically similar documents\nQuery: " + example["benchmark_text"]
     return example
 
 def process_truthfulqa(example):
     example["benchmark_text"] = example["question"]
+    example["benchmark_text_prompted"] = "Instruct: Given a question, retrieve documents that answer the question\nQuery: " + example["benchmark_text"]
     return example
 
 def process_scandisent(example):
     example["benchmark_text"] = example["text"]
+    example["benchmark_text_prompted"] = "Instruct: Retrieve topically similar documents\nQuery: " + example["benchmark_text"]
     return example
 
 def process_squad(example):
     example["benchmark_text"] = example["context"] + " " + example["question"]
+    example["benchmark_text_prompted"] = "Instruct: Retrieve topically similar documents\nQuery: " + example["benchmark_text"]
     return example
 
 def process_sib(example):
     example["benchmark_text"] = example["text"]
+    example["benchmark_text_prompted"] = "Instruct: Retrieve topically similar documents\nQuery: " + example["benchmark_text"]
     return example
 
 # //////////////////////////////////////////////////////////////
@@ -83,6 +90,7 @@ def get_benchmark_data(benchmark_name):
     return examples
 
 def save_benchmark(examples, filename):
+    print(f"Saving benchmark to {filename}")
     with open(filename, 'w') as f:
         for example in examples:
             #print(type(example), example)
@@ -90,13 +98,20 @@ def save_benchmark(examples, filename):
 
 
 def main(args):
+    # Check if output_dir exists, if not, create it
+    if not os.path.exists(args.output_dir):
+        print(f"Creating output directory: {args.output_dir}")
+        os.makedirs(args.output_dir)
+
     for benchmark in args.benchmarks:
         examples = get_benchmark_data(benchmark)
-        output_file = f"benchmarks/{benchmark.replace('/', '-')}.jsonl"
+        output_file = f"{args.output_dir}/{benchmark.replace('/', '-')}.jsonl"
         save_benchmark(examples, output_file)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--benchmarks', type=str, nargs='+', default=["TurkuNLP/finbenchv2-arc-c-fi-ht", "TurkuNLP/finbenchv2-belebele-fi-og", "TurkuNLP/finbenchv2-goldenswag-fi-ht", "TurkuNLP/finbenchv2-opengpt-x_truthfulqax-fi-mt", "TurkuNLP/finbenchv2-scandisent-fi-mini", "TurkuNLP/finbenchv2-squad-strip-fi-mt", "TurkuNLP/finbenchv2-sib-200-fi-og"])
+    parser.add_argument('--output-dir', type=str, default="benchmarks")
     args = parser.parse_args()
     main(args)
+
